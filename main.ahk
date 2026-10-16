@@ -3,21 +3,19 @@
 
 ; ============================================================
 ; Audition Effect Finder
-; v0.3 — MVP: поиск + клик по ▶ + навигация стрелками по меню
+; v0.4 — MVP: поиск + клик по ▶ + навигация стрелками по меню
 ; ============================================================
 
-; --- Пути ---
 SCRIPT_DIR := A_ScriptDir
 INI_FILE   := SCRIPT_DIR . "\plugins.ini"
 
-; --- Тайминги (мс). Если Audition не успевает — увеличить. ---
-DELAY_AFTER_CLICK_MENU := 600   ; после клика по ▶ до появления меню
-DELAY_ARROW            := 80    ; между нажатиями ↓
-DELAY_TO_SUBMENU       := 250   ; между → и следующим ↓
-DELAY_BEFORE_ENTER     := 150   ; перед финальным Enter
+DELAY_AFTER_CLICK_MENU := 600
+DELAY_ARROW            := 80
+DELAY_TO_SUBMENU       := 250
+DELAY_BEFORE_ENTER     := 150
 
 ; ============================================================
-; Чтение plugins.ini
+; Парсинг plugins.ini
 ; ============================================================
 LoadPlugins() {
     global INI_FILE
@@ -34,7 +32,6 @@ LoadPlugins() {
         if (line = "" || SubStr(line, 1, 1) = ";")
             continue
 
-        ; новая секция [Name]
         if (SubStr(line, 1, 1) = "[") {
             if (currentSection != "" && currentData.Has("path"))
                 sections[currentSection] := currentData.Clone()
@@ -43,7 +40,6 @@ LoadPlugins() {
             continue
         }
 
-        ; key = value
         eq := InStr(line, "=")
         if (eq > 0 && currentSection != "") {
             key := Trim(SubStr(line, 1, eq - 1))
@@ -75,6 +71,14 @@ ParseDowns(downsStr) {
             nums.Push(Integer(n))
     }
     return nums
+}
+
+; ============================================================
+; Работа с ListBox через WinAPI (обход отсутствия GetCount)
+; ============================================================
+LB_GetCount(listCtrl) {
+    static LB_GETCOUNT := 0x018B
+    return DllCall("SendMessage", "Ptr", listCtrl.Hwnd, "UInt", LB_GETCOUNT, "Ptr", 0, "Ptr", 0, "Ptr")
 }
 
 ; ============================================================
@@ -132,12 +136,12 @@ PopulateList(listCtrl, query, plugins) {
         if (q = "" || InStr(searchable, q))
             listCtrl.Add([name])
     }
-    if (listCtrl.GetCount() > 0)
+    if (LB_GetCount(listCtrl) > 0)
         listCtrl.Choose(1)
 }
 
 MoveSelection(listCtrl, delta) {
-    n := listCtrl.GetCount()
+    n := LB_GetCount(listCtrl)
     if (n = 0)
         return
     idx := listCtrl.Value
@@ -152,7 +156,7 @@ MoveSelection(listCtrl, delta) {
 }
 
 ApplySelection(listCtrl, win, plugins) {
-    if (listCtrl.GetCount() = 0)
+    if (LB_GetCount(listCtrl) = 0)
         return
     name := listCtrl.Text
     if (name = "" || !plugins.Has(name))
@@ -176,25 +180,20 @@ InsertEffect(name, data) {
     parts := ParsePath(data["path"])
 
     if !data.Has("downs") {
-        MsgBox "Для [" . name . "] не задан параметр downs.`n`n"
-             . "Он указывает, сколько раз нажать ↓ на каждом уровне меню.`n"
-             . "Пример: downs = 13, 4, 4, 0`n`n"
-             . "Подробности — в README.md", "Effect Finder", "Icon!"
+        MsgBox "Для [" . name . "] не задан параметр downs.", "Effect Finder", "Icon!"
         return
     }
 
     downs := ParseDowns(data["downs"])
     if (downs.Length != parts.Length) {
-        MsgBox "У [" . name . "] длины path и downs не совпадают." . "`n"
+        MsgBox "У [" . name . "] длины path и downs не совпадают.`n"
              . "path:  " . data["path"] . "  (" . parts.Length . " уровней)`n"
              . "downs: " . data["downs"] . "  (" . downs.Length . " чисел)", "Effect Finder", "Icon!"
         return
     }
 
-    ; Запоминаем позицию курсора (где наведён на ▶)
     MouseGetPos(&x, &y)
 
-    ; Активируем Audition
     if WinExist("ahk_exe Audition.exe") {
         WinActivate()
         Sleep 250
@@ -203,13 +202,11 @@ InsertEffect(name, data) {
         return
     }
 
-    ; Возвращаем курсор и кликаем
     MouseMove(x, y, 0)
     Sleep 100
     Click()
     Sleep DELAY_AFTER_CLICK_MENU
 
-    ; Навигация по меню
     Loop parts.Length {
         i := A_Index
         downCount := downs[i]
