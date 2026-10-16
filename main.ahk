@@ -194,7 +194,7 @@ InsertEffect(name, data) {
 
     MouseGetPos(&x, &y)
 
-    if WinExist("ahk_exe Audition.exe") {
+    if WinExist("ahk_exe Adobe Audition.exe") {
         WinActivate()
         Sleep 250
     } else {
