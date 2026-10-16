@@ -207,9 +207,13 @@ InsertEffect(name, data) {
     Click()
     Sleep DELAY_AFTER_CLICK_MENU
 
-    Loop parts.Length {
+        Loop parts.Length {
         i := A_Index
         downCount := downs[i]
+
+        ; Сброс подсветки в первый пункт (важно — Audition запоминает последний выбор)
+        Send("{Home}")
+        Sleep 60
 
         Loop downCount {
             Send("{Down}")
